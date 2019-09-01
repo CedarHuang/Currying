@@ -55,12 +55,12 @@ class currying_impl<R(Args...), std::tuple<TupleArgs...>> {
     template <class Fn>
     currying_impl(Fn fn, std::tuple<TupleArgs...> t) : fn_(fn), t_(t) {}
 
-    R ret() {
-        return apply(fn_, t_);
+    R operator()() {
+        return *this;
     }
 
     operator R() {
-        return ret();
+        return apply(fn_, t_);
     }
 
   private:
