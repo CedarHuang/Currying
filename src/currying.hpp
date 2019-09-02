@@ -8,7 +8,7 @@
 
 namespace cedar {
 
-template <std::size_t... Ints>
+template <std::size_t...>
 struct index_sequence {};
 
 template <std::size_t N, std::size_t... Ints>
@@ -76,5 +76,40 @@ struct currying<R(Args...)> : currying_impl<R(Args...), std::tuple<>, Args...> {
     currying(Fn fn) : currying_impl<R(Args...), std::tuple<>, Args...>(fn, std::make_tuple()) {}
 };
 
+template <class Fn>
+struct function_traits : function_traits<decltype(&Fn::operator())> {};
+template <class Fn>
+struct function_traits<Fn&> : public function_traits<Fn> {};
+template <class Fn>
+struct function_traits<Fn&&> : public function_traits<Fn> {};
+template <class R, class... Args>
+struct function_traits<R(Args...)> {
+    using return_type = R;
+    using args_type = std::tuple<Args...>;
+};
+template <class R, class... Args>
+struct function_traits<R (*)(Args...)> : function_traits<R(Args...)> {};
+template <class C, class R, class... Args>
+struct function_traits<R (C::*)(Args...)> : function_traits<R(Args...)> {};
+template <class C, class R, class... Args>
+struct function_traits<R (C::*)(Args...) const> : function_traits<R(Args...)> {};
+template <class C, class R>
+struct function_traits<R(C::*)> : public function_traits<R()> {};
+
+struct make_currying_impl {
+    template <class Fn, std::size_t... Ints>
+    currying<typename function_traits<Fn>::return_type(typename std::tuple_element<Ints, typename function_traits<Fn>::args_type>::type...)>
+    operator()(Fn fn, index_sequence<Ints...>) {
+        return fn;
+    }
+};
+
+template <class Fn>
+typename std::result_of<make_currying_impl(Fn, index_sequence_for_tuple<typename function_traits<Fn>::args_type>)>::type
+make_currying(Fn fn) {
+    return make_currying_impl()(fn, index_sequence_for_tuple<typename function_traits<Fn>::args_type>());
+}
+
 }  // namespace cedar
+
 #endif
