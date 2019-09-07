@@ -19,61 +19,70 @@ struct make_index_sequence<0, Ints...> : index_sequence<Ints...> {};
 template <class Tuple>
 using index_sequence_for_tuple = make_index_sequence<std::tuple_size<Tuple>::value>;
 
-template <class Fn, class... Args, std::size_t... Ints>
-typename std::result_of<Fn(Args...)>::type
-apply_impl(Fn fn, std::tuple<Args...> t, index_sequence<Ints...>) {
-    return fn(std::get<Ints>(t)...);
+template <class _Fn, class... _Args, std::size_t... _Ints>
+typename std::result_of<_Fn(_Args...)>::type
+_apply_impl(_Fn&& _fn, const std::tuple<_Args...>& _t, index_sequence<_Ints...>) {
+    return _fn(std::get<_Ints>(_t)...);
 }
 
 template <class Fn, class... Args>
 typename std::result_of<Fn(Args...)>::type
-apply(Fn fn, std::tuple<Args...> t) {
-    return apply_impl(fn, t, index_sequence_for_tuple<std::tuple<Args...>>());
+apply(Fn&& fn, const std::tuple<Args...>& t) {
+    return _apply_impl(std::forward<Fn>(fn), t, index_sequence_for_tuple<std::tuple<Args...>>());
 }
 
 template <class, class, class...>
-class currying_impl;
-template <class R, class... Args, class... TupleArgs, class YetArg, class... YetArgs>
-class currying_impl<R(Args...), std::tuple<TupleArgs...>, YetArg, YetArgs...> {
+class _currying_impl;
+template <class _R, class... _Args, class... _TupleArgs, class _YetArg, class... _YetArgs>
+class _currying_impl<_R(_Args...), std::tuple<_TupleArgs...>, _YetArg, _YetArgs...> {
   public:
-    template <class Fn>
-    currying_impl(Fn fn, std::tuple<TupleArgs...> t) : fn_(fn), t_(t) {}
+    template <class _Fn>
+    _currying_impl(_Fn&& _fn, const std::tuple<_TupleArgs...>& _t) : _fn_(std::forward<_Fn>(_fn)), _t_(_t) {}
+    template <class _Fn>
+    _currying_impl(_Fn&& _fn, std::tuple<_TupleArgs...>&& _t) : _fn_(std::forward<_Fn>(_fn)), _t_(std::move(_t)) {}
 
-    currying_impl<R(Args...), std::tuple<TupleArgs..., YetArg>, YetArgs...>
-    operator()(YetArg arg) {
-        return currying_impl<R(Args...), std::tuple<TupleArgs..., YetArg>, YetArgs...>(
-            fn_, std::tuple_cat(t_, std::make_tuple(arg)));
+    _currying_impl<_R(_Args...), std::tuple<_TupleArgs..., _YetArg>, _YetArgs...>
+    operator()(_YetArg _arg) & {
+        return _currying_impl<_R(_Args...), std::tuple<_TupleArgs..., _YetArg>, _YetArgs...>(
+            _fn_, std::tuple_cat(_t_, std::tuple<_YetArg>(std::forward<_YetArg>(_arg))));
+    }
+    _currying_impl<_R(_Args...), std::tuple<_TupleArgs..., _YetArg>, _YetArgs...>
+    operator()(_YetArg _arg) && {
+        return _currying_impl<_R(_Args...), std::tuple<_TupleArgs..., _YetArg>, _YetArgs...>(
+            std::move(_fn_), std::tuple_cat(std::move(_t_), std::tuple<_YetArg>(std::forward<_YetArg>(_arg))));
     }
 
   private:
-    std::function<R(Args...)> fn_;
-    std::tuple<TupleArgs...> t_;
+    std::function<_R(_Args...)> _fn_;
+    std::tuple<_TupleArgs...> _t_;
 };
-template <class R, class... Args, class... TupleArgs>
-class currying_impl<R(Args...), std::tuple<TupleArgs...>> {
+template <class _R, class... _Args, class... _TupleArgs>
+class _currying_impl<_R(_Args...), std::tuple<_TupleArgs...>> {
   public:
-    template <class Fn>
-    currying_impl(Fn fn, std::tuple<TupleArgs...> t) : fn_(fn), t_(t) {}
+    template <class _Fn>
+    _currying_impl(_Fn&& _fn, const std::tuple<_TupleArgs...>& _t) : _fn_(std::forward<_Fn>(_fn)), _t_(_t) {}
+    template <class _Fn>
+    _currying_impl(_Fn&& _fn, std::tuple<_TupleArgs...>&& _t) : _fn_(std::forward<_Fn>(_fn)), _t_(std::move(_t)) {}
 
-    R operator()() {
+    _R operator()() {
         return *this;
     }
 
-    operator R() {
-        return apply(fn_, t_);
+    operator _R() {
+        return apply(_fn_, _t_);
     }
 
   private:
-    std::function<R(Args...)> fn_;
-    std::tuple<TupleArgs...> t_;
+    std::function<_R(_Args...)> _fn_;
+    std::tuple<_TupleArgs...> _t_;
 };
 
 template <class>
 struct currying;
 template <class R, class... Args>
-struct currying<R(Args...)> : currying_impl<R(Args...), std::tuple<>, Args...> {
+struct currying<R(Args...)> : _currying_impl<R(Args...), std::tuple<>, Args...> {
     template <class Fn>
-    currying(Fn fn) : currying_impl<R(Args...), std::tuple<>, Args...>(fn, std::make_tuple()) {}
+    currying(Fn&& fn) : _currying_impl<R(Args...), std::tuple<>, Args...>(std::forward<Fn>(fn), std::make_tuple()) {}
 };
 
 template <class Fn>
@@ -96,18 +105,18 @@ struct function_traits<R (C::*)(Args...) const> : function_traits<R(Args...)> {}
 template <class C, class R>
 struct function_traits<R(C::*)> : public function_traits<R()> {};
 
-struct make_currying_impl {
-    template <class Fn, std::size_t... Ints>
-    currying<typename function_traits<Fn>::return_type(typename std::tuple_element<Ints, typename function_traits<Fn>::args_type>::type...)>
-    operator()(Fn fn, index_sequence<Ints...>) {
-        return fn;
+struct _make_currying_impl {
+    template <class _Fn, std::size_t... _Ints>
+    currying<typename function_traits<_Fn&&>::return_type(typename std::tuple_element<_Ints, typename function_traits<_Fn&&>::args_type>::type...)>
+    operator()(_Fn&& _fn, index_sequence<_Ints...>) {
+        return std::forward<_Fn>(_fn);
     }
 };
 
 template <class Fn>
-typename std::result_of<make_currying_impl(Fn, index_sequence_for_tuple<typename function_traits<Fn>::args_type>)>::type
-make_currying(Fn fn) {
-    return make_currying_impl()(fn, index_sequence_for_tuple<typename function_traits<Fn>::args_type>());
+typename std::result_of<_make_currying_impl(Fn&&, index_sequence_for_tuple<typename function_traits<Fn&&>::args_type>)>::type
+make_currying(Fn&& fn) {
+    return _make_currying_impl()(std::forward<Fn>(fn), index_sequence_for_tuple<typename function_traits<Fn&&>::args_type>());
 }
 
 }  // namespace cedar
