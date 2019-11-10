@@ -42,7 +42,7 @@ class _currying_impl<_R(_Args...), std::tuple<_TupleArgs...>, _YetArg, _YetArgs.
     _currying_impl(_Fn&& _fn, std::tuple<_TupleArgs...>&& _t) : _fn_(std::forward<_Fn>(_fn)), _t_(std::move(_t)) {}
 
     _currying_impl<_R(_Args...), std::tuple<_TupleArgs..., _YetArg>, _YetArgs...>
-    operator()(_YetArg _arg) & {
+    operator()(_YetArg _arg) const& {
         return _currying_impl<_R(_Args...), std::tuple<_TupleArgs..., _YetArg>, _YetArgs...>(
             _fn_, std::tuple_cat(_t_, std::tuple<_YetArg>(std::forward<_YetArg>(_arg))));
     }
