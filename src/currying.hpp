@@ -53,6 +53,20 @@ class _currying_impl<_R(_Args...), std::tuple<_TupleArgs...>, _YetArg, _YetArgs.
     }
 
   private:
+    template <class _MaybeArg, bool _ArgsSize, typename std::enable_if<_ArgsSize != 0>::type* = nullptr, class... _MaybeArgs>
+    auto _mut_args_call(_MaybeArg&& _arg, _MaybeArgs&&... _args)
+        -> decltype(operator()(std::forward<_MaybeArg>(_arg))(std::forward<_MaybeArgs>(_args)...)) {
+        return operator()(std::forward<_MaybeArg>(_arg))(std::forward<_MaybeArgs>(_args)...);
+    }
+
+  public:
+    template <class _MaybeArg, class... _MaybeArgs>
+    auto operator()(_MaybeArg&& _arg, _MaybeArgs&&... _args)
+        -> decltype(_mut_args_call<_MaybeArg&&, sizeof...(_MaybeArgs), nullptr, _MaybeArgs&&...>(std::forward<_MaybeArg>(_arg), std::forward<_MaybeArgs>(_args)...)) {
+        return _mut_args_call<_MaybeArg&&, sizeof...(_MaybeArgs), nullptr, _MaybeArgs&&...>(std::forward<_MaybeArg>(_arg), std::forward<_MaybeArgs>(_args)...);
+    }
+
+  private:
     std::function<_R(_Args...)> _fn_;
     std::tuple<_TupleArgs...> _t_;
 };
